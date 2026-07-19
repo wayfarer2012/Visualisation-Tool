@@ -7,12 +7,25 @@ It supports interior and exterior paintable surfaces with text prompts.
 import argparse
 import json
 import sys
+import warnings
 from pathlib import Path
 
 import numpy as np
 import torch
 from huggingface_hub import hf_hub_download
 from PIL import Image
+
+
+warnings.filterwarnings(
+    "ignore",
+    message="Flash Attention is disabled.*",
+    category=UserWarning,
+)
+warnings.filterwarnings(
+    "ignore",
+    message="Importing from timm.models.layers is deprecated.*",
+    category=FutureWarning,
+)
 
 
 # ---------------------------------------------------------------------------

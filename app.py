@@ -6,7 +6,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtCore import QPointF, QProcess, QRectF, Qt, QTimer
+from PySide6.QtCore import QPointF, QProcess, QProcessEnvironment, QRectF, Qt, QTimer
 from PySide6.QtGui import (
     QBrush,
     QColor,
@@ -34,6 +34,13 @@ from PySide6.QtWidgets import (
     QPushButton,
     QVBoxLayout,
     QWidget,
+)
+
+
+BENIGN_SAM_WARNING_PATTERNS = (
+    "Flash Attention is disabled",
+    "Importing from timm.models.layers is deprecated",
+    "please import via timm.layers",
 )
 
 
@@ -1114,6 +1121,19 @@ class ImageUploadWindow(QMainWindow):
         self.sam_process_failure_handled = False
         self.sam_process = QProcess(self)
         self.sam_process.setWorkingDirectory(str(project_folder))
+        environment = QProcessEnvironment.systemEnvironment()
+        python_warnings = environment.value("PYTHONWARNINGS")
+        warning_filters = [
+            "ignore:Flash Attention is disabled:UserWarning",
+            "ignore:Importing from timm.models.layers is deprecated:FutureWarning",
+        ]
+        environment.insert(
+            "PYTHONWARNINGS",
+            ",".join([*warning_filters, python_warnings])
+            if python_warnings
+            else ",".join(warning_filters),
+        )
+        self.sam_process.setProcessEnvironment(environment)
         self.sam_process.setProgram(str(sam_python))
         self.sam_process.setArguments(
             [
@@ -1166,7 +1186,11 @@ class ImageUploadWindow(QMainWindow):
             errors="replace"
         )
         if exit_status != QProcess.ExitStatus.NormalExit or exit_code != 0:
-            self.handle_sam_segmentation_failure(standard_error or standard_output)
+            self.handle_sam_segmentation_failure(
+                self.format_sam_failure_reason(
+                    standard_output, standard_error, exit_code, exit_status
+                )
+            )
             return
 
         visualisation_id = self.current_visualisation_id
@@ -1180,6 +1204,35 @@ class ImageUploadWindow(QMainWindow):
         self.finish_scan_animation(len(segments))
         self.set_sam_busy(False)
         self.sam_process = None
+
+    def format_sam_failure_reason(
+        self,
+        standard_output: str,
+        standard_error: str,
+        exit_code: int,
+        exit_status,
+    ) -> str:
+        """Return a useful SAM failure reason without noisy dependency warnings."""
+        combined_output = "\n".join(
+            text.strip() for text in (standard_error, standard_output) if text.strip()
+        )
+        relevant_lines = [
+            line
+            for line in combined_output.splitlines()
+            if not any(pattern in line for pattern in BENIGN_SAM_WARNING_PATTERNS)
+        ]
+        cleaned_reason = "\n".join(relevant_lines).strip()
+        if cleaned_reason:
+            return cleaned_reason
+
+        if exit_status != QProcess.ExitStatus.NormalExit:
+            return (
+                "The SAM 3.1 subprocess stopped unexpectedly before it could "
+                "write a useful error message. Try a smaller image, then run "
+                "segmentation_tests/check_gpu.py to confirm the CUDA setup."
+            )
+
+        return f"SAM 3.1 exited with code {exit_code} and no error details."
 
     def handle_sam_segmentation_failure(self, reason: str) -> None:
         """Keep the unsaved session and original image when segmentation fails."""
