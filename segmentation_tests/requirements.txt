@@ -1,0 +1,4 @@
+# PyTorch and the official SAM 3 repository are installed separately.
+numpy
+pillow
+huggingface_hub

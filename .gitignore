@@ -1,0 +1,36 @@
+.venv/
+__pycache__/
+data/
+.venv/
+.venv-sam31/
+__pycache__/
+data/
+
+# Python cache
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Secrets
+.env
+.env.*
+*.pem
+*.key
+
+# Large model files
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+
+# Generated files
+output/
+outputs/
+runs/
+segmentation_tests/output/
+
+# Local editor files
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
